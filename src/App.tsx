@@ -44,10 +44,41 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [processingError, setProcessingError] = useState('');
   
+  // Custom variation threshold and file buffer states
+  const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [variationThreshold, setVariationThreshold] = useState<number>(25);
+  
   // Interactive Accordion States (Stores expanded/collapsed)
   const [expandedStores, setExpandedStores] = useState<Record<string, boolean>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Re-process when fileBuffer or variationThreshold changes
+  React.useEffect(() => {
+    if (fileBuffer) {
+      setIsProcessing(true);
+      const timer = setTimeout(() => {
+        try {
+          const results = processExcelData(fileBuffer, variationThreshold);
+          setProcessedData(results);
+          setProcessingError('');
+          
+          // Expand all stores by default
+          const initialExpandState: Record<string, boolean> = {};
+          Object.keys(results).forEach((loja) => {
+            initialExpandState[loja] = true;
+          });
+          setExpandedStores(initialExpandState);
+        } catch (err) {
+          console.error(err);
+          setProcessingError('Ocorreu um erro ao processar o arquivo. Verifique se o formato está correto.');
+        } finally {
+          setIsProcessing(false);
+        }
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [fileBuffer, variationThreshold]);
 
   // Default Login Handler
   const handleLogin = (e: React.FormEvent) => {
@@ -72,6 +103,8 @@ export default function App() {
   const handleLogout = () => {
     setSession({ username: '', isAuthenticated: false });
     setProcessedData(null);
+    setFileBuffer(null);
+    setVariationThreshold(25);
     setFileName('');
     setFileSize('');
     setLoginUser('');
@@ -112,6 +145,7 @@ export default function App() {
     if (extension !== 'xlsx' && extension !== 'xls') {
       setProcessingError('Por favor, faça o upload de um arquivo válido do Excel (.xlsx ou .xls)');
       setProcessedData(null);
+      setFileBuffer(null);
       return;
     }
 
@@ -126,19 +160,10 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const buffer = e.target?.result as ArrayBuffer;
-        const results = processExcelData(buffer);
-        setProcessedData(results);
-        
-        // Expandir todas as lojas por padrão ao carregar
-        const initialExpandState: Record<string, boolean> = {};
-        Object.keys(results).forEach((loja) => {
-          initialExpandState[loja] = true;
-        });
-        setExpandedStores(initialExpandState);
+        setFileBuffer(buffer); // Salvando o buffer no estado (o useEffect reage e processa)
       } catch (err) {
         console.error(err);
         setProcessingError('Ocorreu um erro ao processar o arquivo. Verifique se o formato está correto.');
-      } finally {
         setIsProcessing(false);
       }
     };
@@ -189,7 +214,7 @@ export default function App() {
   };
 
   const stats = getStats();
-  const rawMarkdown = processedData ? formatProcessedOutput(processedData) : '';
+  const rawMarkdown = processedData ? formatProcessedOutput(processedData, variationThreshold) : '';
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(rawMarkdown);
@@ -351,9 +376,89 @@ export default function App() {
               <div className="space-y-1">
                 <h2 className="text-2xl font-bold tracking-tight text-slate-950">Processador de Relatório de Custos Excel</h2>
                 <p className="text-sm text-slate-500">
-                  Faça o upload do seu arquivo Excel para filtrar variações de custo superiores a 25% por loja, nota e fornecedor.
+                  Faça o upload do seu arquivo Excel para filtrar variações de custo superiores a {variationThreshold}% por loja, nota e fornecedor.
                 </p>
               </div>
+
+              {/* Filtro Interativo de Variação de Custo */}
+              <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4" id="variation-filter-card">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse"></div>
+                      <h3 className="font-bold text-slate-900 text-sm md:text-base">Filtro de Percentual de Variação</h3>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Defina o limite percentual de variação (positivo ou negativo) para identificar os produtos no relatório.
+                    </p>
+                  </div>
+                  
+                  {/* Badge de valor atual */}
+                  <div className="flex items-center gap-2 self-start sm:self-auto bg-blue-50 px-3.5 py-1.5 rounded-xl border border-blue-100">
+                    <span className="text-xs font-semibold text-blue-700">Filtro Ativo:</span>
+                    <span className="text-base font-extrabold text-blue-600">&gt; {variationThreshold}%</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center pt-2">
+                  {/* Slider */}
+                  <div className="lg:col-span-5 space-y-2">
+                    <div className="flex justify-between text-xs text-slate-400 font-semibold">
+                      <span>Sensível (1%)</span>
+                      <span>Crítico (150%)</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="150" 
+                      value={variationThreshold} 
+                      onChange={(e) => setVariationThreshold(Number(e.target.value))}
+                      className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600 focus:outline-none"
+                      id="variation-slider"
+                    />
+                  </div>
+
+                  {/* Manual Input */}
+                  <div className="lg:col-span-3 flex items-center gap-3">
+                    <span className="text-xs font-semibold text-slate-500 shrink-0">Valor Manual:</span>
+                    <div className="relative flex-1">
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="999" 
+                        value={variationThreshold} 
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          if (val >= 1) {
+                            setVariationThreshold(val);
+                          }
+                        }}
+                        className="w-full rounded-xl border border-slate-200 py-2 px-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-bold transition-all pr-8"
+                        id="variation-number-input"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
+
+                  {/* Presets */}
+                  <div className="lg:col-span-4 flex flex-wrap gap-1.5 justify-start lg:justify-end">
+                    {[5, 10, 25, 50, 100].map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => setVariationThreshold(preset)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          variationThreshold === preset 
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/10" 
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                        id={`btn-preset-${preset}`}
+                      >
+                        {preset}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
 
               {/* Área de Upload */}
               <section className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
@@ -464,7 +569,7 @@ export default function App() {
                         <TrendingUp className="h-6 w-6" />
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Produtos com Variação &gt; 25%</p>
+                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Produtos com Variação &gt; {variationThreshold}%</p>
                         <p className="text-2xl font-bold text-slate-900 mt-0.5">{stats.produtosCount}</p>
                       </div>
                     </div>
@@ -483,7 +588,7 @@ export default function App() {
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Download Word */}
                         <button
-                          onClick={() => exportToWord(processedData)}
+                          onClick={() => exportToWord(processedData, `relatorio_variacao_${variationThreshold}pct.docx`, variationThreshold)}
                           id="btn-download-word"
                           className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all cursor-pointer shadow-sm shadow-blue-500/10"
                         >
@@ -493,7 +598,7 @@ export default function App() {
 
                         {/* Download PDF */}
                         <button
-                          onClick={() => exportToPDF(processedData)}
+                          onClick={() => exportToPDF(processedData, `relatorio_variacao_${variationThreshold}pct.pdf`, variationThreshold)}
                           id="btn-download-pdf"
                           className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-all cursor-pointer shadow-sm shadow-slate-900/10"
                         >
@@ -529,7 +634,7 @@ export default function App() {
                           <Info className="mx-auto h-12 w-12 text-slate-300" />
                           <h4 className="font-bold text-slate-800">Nenhum registro crítico encontrado</h4>
                           <p className="text-sm text-slate-400 max-w-sm mx-auto">
-                            O arquivo Excel foi processado perfeitamente, mas nenhum produto apresentou variação de custo superior a 25%.
+                            O arquivo Excel foi processado perfeitamente, mas nenhum produto apresentou variação de custo superior a {variationThreshold}%.
                           </p>
                         </div>
                       ) : (

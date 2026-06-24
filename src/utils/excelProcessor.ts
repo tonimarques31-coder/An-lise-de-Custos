@@ -5,7 +5,7 @@ import { ProcessedData, ProductInfo } from '../types';
  * Processa o arquivo Excel para extrair produtos com variação de custo > 25%.
  * Baseado rigorosamente no algoritmo fornecido na especificação do usuário.
  */
-export function processExcelData(arrayBuffer: ArrayBuffer): ProcessedData {
+export function processExcelData(arrayBuffer: ArrayBuffer, variationThreshold: number = 25): ProcessedData {
   const data = new Uint8Array(arrayBuffer);
   const workbook = XLSX.read(data, { type: 'array' });
   
@@ -115,8 +115,8 @@ export function processExcelData(arrayBuffer: ArrayBuffer): ProcessedData {
         if (variacaoVal !== undefined && variacaoVal !== null) {
           const varFloat = parseFloat(String(variacaoVal));
           if (!isNaN(varFloat)) {
-            // Critério de variação: > 25% para mais ou para menos
-            if (Math.abs(varFloat) > 25) {
+            // Critério de variação: maior que o limite definido para mais ou para menos
+            if (Math.abs(varFloat) > variationThreshold) {
               const custoAnter = custoAnterVal !== undefined && custoAnterVal !== null && !isNaN(Number(custoAnterVal)) 
                 ? parseFloat(String(custoAnterVal)) 
                 : 0.0;
@@ -170,12 +170,12 @@ export function processExcelData(arrayBuffer: ArrayBuffer): ProcessedData {
 /**
  * Formata os dados processados em uma string Markdown correspondente à do Streamlit.
  */
-export function formatProcessedOutput(processedData: ProcessedData): string {
+export function formatProcessedOutput(processedData: ProcessedData, variationThreshold: number = 25): string {
   const outputLines: string[] = [];
   
   const lojas = Object.keys(processedData);
   if (lojas.length === 0) {
-    return "Nenhum produto com variação superior a 25% foi encontrado.";
+    return `Nenhum produto com variação superior a ${variationThreshold}% foi encontrado.`;
   }
   
   // Ordenar lojas pelo número inicial para uma apresentação consistente

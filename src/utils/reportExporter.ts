@@ -19,7 +19,7 @@ function downloadBlob(blob: Blob, filename: string) {
 /**
  * Exporta os dados processados para um arquivo Word (.docx) formatado e estilizado.
  */
-export function exportToWord(processedData: ProcessedData, filename = "relatorio_variacao_custo.docx") {
+export function exportToWord(processedData: ProcessedData, filename = "relatorio_variacao_custo.docx", variationThreshold = 25) {
   const sectionsChildren: Paragraph[] = [];
   
   // Título Principal do Relatório
@@ -45,7 +45,7 @@ export function exportToWord(processedData: ProcessedData, filename = "relatorio
       spacing: { after: 600 },
       children: [
         new TextRun({
-          text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}`,
+          text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}  |  Filtro: > ${variationThreshold}%`,
           italics: true,
           size: 20, // 10pt
           color: "4B5563", // Gray 600
@@ -68,7 +68,7 @@ export function exportToWord(processedData: ProcessedData, filename = "relatorio
         spacing: { before: 200 },
         children: [
           new TextRun({
-            text: "Nenhum produto com variação superior a 25% foi encontrado.",
+            text: `Nenhum produto com variação superior a ${variationThreshold}% foi encontrado.`,
             size: 24,
             color: "6B7280",
           }),
@@ -188,7 +188,7 @@ export function exportToWord(processedData: ProcessedData, filename = "relatorio
 /**
  * Exporta os dados processados para um arquivo PDF (.pdf) formatado profissionalmente.
  */
-export function exportToPDF(processedData: ProcessedData, filename = "relatorio_variacao_custo.pdf") {
+export function exportToPDF(processedData: ProcessedData, filename = "relatorio_variacao_custo.pdf", variationThreshold = 25) {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -220,7 +220,7 @@ export function exportToPDF(processedData: ProcessedData, filename = "relatorio_
   
   doc.setFont("Helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}`, 105, 28, { align: "center" });
+  doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")} às ${new Date().toLocaleTimeString("pt-BR")}  |  Filtro: > ${variationThreshold}%`, 105, 28, { align: "center" });
 
   y = 50;
 
@@ -236,7 +236,7 @@ export function exportToPDF(processedData: ProcessedData, filename = "relatorio_
     doc.setFont("Helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128);
-    doc.text("Nenhum produto com variação superior a 25% foi encontrado.", 20, y);
+    doc.text(`Nenhum produto com variação superior a ${variationThreshold}% foi encontrado.`, 20, y);
     doc.save(filename);
     return;
   }
