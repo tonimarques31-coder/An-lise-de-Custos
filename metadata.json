@@ -1,0 +1,6 @@
+{
+  "name": "Análise de Custos",
+  "description": "Sistema para ler arquivos Excel, filtrar variações de custos maiores que 25% por loja, nota e fornecedor, gerando relatórios com exportação para PDF e Word.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
